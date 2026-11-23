@@ -44,6 +44,7 @@ build_config() {
 	addn-hosts=$HOSTS_FILE
 	local=/$ZONE/
 	local-ttl=5
+	conf-dir=/etc/dnz/config.d
 	EOF
 
   for node in $NODES; do
