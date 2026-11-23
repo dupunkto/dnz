@@ -22,10 +22,10 @@ resolve() {
 }
 
 gateway() {
-  bridge=$(docker network inspect "$NET" --format '{{index .Options "com.docker.network.bridge.name"}}')
-  [ -n "$bridge" ] || bridge=br-$(docker network inspect "$NET" --format '{{.Id}}' | cut -c1-12)
+  subnet=$(docker network inspect "$NET" --format '{{(index .IPAM.Config 0).Subnet}}')
 
-  ip -4 -o addr show dev "$bridge" | awk '{ split($4, a, "/"); print a[1]; exit }' | grep . || die "no address on $bridge"
+  ip -4 route | awk -v subnet="$subnet" '$1 == subnet { for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit } }' |
+    grep . || die "no route for $subnet"
 }
 
 containers() {
