@@ -22,7 +22,10 @@ resolve() {
 }
 
 gateway() {
-  docker network inspect "$NET" --format '{{(index .IPAM.Config 0).Gateway}}'
+  bridge=$(docker network inspect "$NET" --format '{{index .Options "com.docker.network.bridge.name"}}')
+  [ -n "$bridge" ] || bridge=br-$(docker network inspect "$NET" --format '{{.Id}}' | cut -c1-12)
+
+  ip -4 -o addr show dev "$bridge" | awk '{ split($4, a, "/"); print a[1]; exit }' | grep . || die "no address on $bridge"
 }
 
 containers() {
@@ -61,8 +64,16 @@ watch() {
   docker events --since "$1" \
     --filter type=network --filter type=container \
     --filter event=connect --filter event=disconnect --filter event=rename \
-    --format '{{.Action}}' |
-    while read -r _; do
+    --filter event=create --filter event=destroy \
+    --format '{{.Type}} {{.Action}} {{.Actor.Attributes.name}}' |
+    while read -r type action name; do
+      if [ "$type" = network ] && [ "$action" != connect ] && [ "$action" != disconnect ]; then
+        [ "$name" = "$NET" ] || continue
+        warn "network $NET was recreated, restarting"
+        kill 1
+        exit
+      fi
+
       build_hosts > $HOSTS_FILE
       kill -HUP 1
     done
